@@ -2,23 +2,23 @@ import 'dart:convert';
 
 import 'package:email_client/models/conversation.dart';
 import 'package:email_client/models/message.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_html/flutter_html.dart';
 import 'package:html_unescape/html_unescape.dart';
 import 'package:http/http.dart' as http;
 import 'package:googleapis/gmail/v1.dart' as gmail;
 import 'package:googleapis_auth/auth_io.dart';
+import 'package:googleapis_auth/auth_browser.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:collection/collection.dart'; // <- required or firstWhereOrNull is not defined
+import 'creds.dart' as creds;
 
 const AUTH_KEY = "GMAIL_AUTH";
-const CLIENT_ID =
-    "211265239316-cbmqt8svcd8f0svbjjr2pd6dnc7tigrq.apps.googleusercontent.com";
-const CLIENT_SECRET = "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";
 
 class GmailConnector {
-  final _clientId = ClientId(CLIENT_ID, CLIENT_SECRET);
+  final _clientId = ClientId(creds.CLIENT_ID, creds.CLIENT_SECRET);
   final _storage = const FlutterSecureStorage();
   final _unescape = HtmlUnescape();
 
@@ -92,10 +92,17 @@ class GmailConnector {
   }
 
   Future<AccessCredentials?> _authenticate() async {
-    final client = http.Client();
-    final creds = await obtainAccessCredentialsViaUserConsent(
-        _clientId, [gmail.GmailApi.gmailReadonlyScope], client, _prompt);
-
+    final AccessCredentials creds;
+    if (kIsWeb) {
+      final flow = await createImplicitBrowserFlow(
+          _clientId, [gmail.GmailApi.gmailReadonlyScope]);
+      creds = await flow.obtainAccessCredentialsViaUserConsent();
+      print(creds);
+    } else {
+      final client = http.Client();
+      creds = await obtainAccessCredentialsViaUserConsent(
+          _clientId, [gmail.GmailApi.gmailReadonlyScope], client, _prompt);
+    }
     _storage.write(key: AUTH_KEY, value: jsonEncode(creds.toJson()));
     return creds;
   }
